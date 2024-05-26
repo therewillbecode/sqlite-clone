@@ -1,7 +1,6 @@
 mod repl;
-
-use crate::repl::repl_loop;
+use repl::repl_loop;
 
 fn main() {
-    repl_loop().expect("something went wrong in REPL")
+    repl_loop().expect("something went wrong in REPL");
 }
