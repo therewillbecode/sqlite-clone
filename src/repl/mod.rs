@@ -3,7 +3,6 @@ mod metacommand;
 use crate::repl::metacommand::handle_metacommand;
 use anyhow::{anyhow, bail, Context, Result};
 use clap::Command;
-use clap::{Parser, Subcommand};
 use std::io::Write;
 
 pub fn repl_loop() -> Result<()> {
@@ -29,7 +28,6 @@ pub fn repl_loop() -> Result<()> {
             }
         }
     }
-
     Ok(())
 }
 

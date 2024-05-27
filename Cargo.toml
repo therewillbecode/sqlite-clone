@@ -1,5 +1,5 @@
 [package]
-name = "sqlite-clone"
+name = "rust-wrapper"
 version = "0.1.0"
 edition = "2021"
 
@@ -11,7 +11,8 @@ async-trait = "0.1.80"
 axum = "0.7.5"
 base64 = "0.22.1"
 bytes = "1.6.0"
-chumsky = "0.9.3"
+ariadne = "0.4.1"
+chumsky = { version = "1.0.0-alpha.7", features = ["label"] }
 clap = "4.5.4"
 clap_builder = "4.5.2"
 clap_derive = "4.5.4"
