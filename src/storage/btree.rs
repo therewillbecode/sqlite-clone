@@ -2,14 +2,18 @@ use anyhow::{anyhow, Result};
 use std::vec::Vec;
 /*
 
-  Btrees are effective data structures for the minimizing the number of disk accesses when operating on data that
+  Btrees are effective data structures for the minimizing the number of random disk accesses when operating on data that
   doesn't fit into memory. Thie fact b-trees can be used to maximise sequential disk access and minimise random access on
-  disk which is way slower is why they are such a good fit for databases. A btree allows for a notion of locality by
+  disk which is way slower is why they are such a good fit for databases.
+
+  A btree allows for a notion of locality grouping "nearby" interior nodes into a bigger node which
+  maps to a "page" on disk. The page is smallest amount of disk data which is allocatable to memory.
+  So each node we find would correspond to a random disk seek but then once we load that page in memory
+  things are faster???
+
   grouping interior nodes together, so interior node comparisons equate to a sequential disk seek.
   A naive binary search tree on the other hand would be a bad fit as there is no idea of locality,
-  every node comparison equates to a random disk seek. The smallest unit of disk operation is a block
-  which has pages in it. We want our grouped interior nodes (pages) to be grouped into "container" like nodes which
-  map to blocks on disk.
+  every node comparison equates to a random disk seek.
 
   See the CLRS book which
   which proves that a B-tree with a height of two and 1001 children is able to store more than one billion keys
@@ -21,20 +25,13 @@ use std::vec::Vec;
 
 /*
 
- Each node in a btree has a key and value.
-
- Key is used to maintain the order of the tree,
- Value is the actual data being stored.
 
  --- Fanout determined by sqlite's page size ----
 
  btrees have high fanout, which refers to the maximum number of children per node and is
  inversely correlated to height of the tree.
 
- The fanout in sqlite is primarily determined by the page size which the default is 4kB (4096 bytes)
- but can be set to range from 512 bytes to 64 KB
-
- Example of a 2-ary btree.
+ Example of a N-ary btree.
 
                  |   100   | <-- root node has one interior node which has two children [88, 103]
                   |      |
@@ -44,20 +41,38 @@ use std::vec::Vec;
                         ^    ^ leaf nodes (no children)
 */
 
-struct InteriorNode<'a, K, V> {
-    key: K,
-    value: V,
+struct InteriorNode<'a, K: PartialOrd, V> {
+    key: K,   //   Key is used to maintain the order of the tree,
+    value: V, // Value is the actual data being stored.
+    // Maximum of N + 1 child nodes
     children: Vec<Node<'a, K, V>>,
 }
 
-struct RootNode<'a, K, V> {
+struct RootNode<'a, K: PartialOrd, V> {
     interior_nodes: Vec<Node<'a, K, V>>,
 }
 
-struct Node<'a, K, V> {
+// A Node maps to a "page" on disk. Think of btrees as a way of organizing disk pages.
+struct Node<'a, K: PartialOrd, V> {
     parent: &'a Node<'a, K, V>,
-    interior_nodes: Vec<InteriorNode<'a, K, V>>,
+    // Maximum of N interior nodes
+    interior_nodes: Vec<InteriorNode<'a, K, V>>, // sorted by K
 }
+
+impl<'a, K: PartialOrd> Node<'a, K, V> {
+    // insert in sorted order
+    pub fn insert_interior(&mut self, value: InteriorNode<'a, K, V>) {
+        match self.vec.binary_search(&value) {
+            Ok(pos) | Err(pos) => self.vec.insert(pos, value),
+        }
+    }
+}
+
+/* balancing operations */
+
+fn split() {}
+
+fn merge() {}
 
 #[cfg(test)]
 mod tests {
