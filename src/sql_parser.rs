@@ -14,7 +14,6 @@ struct Column {
 
 // NULL, True, "foo", 21 etc.
 #[derive(Debug, PartialEq)]
-
 enum ColVal {
     Boolean(bool),
     String(String),
