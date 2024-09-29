@@ -1,5 +1,7 @@
 use anyhow::{anyhow, Result};
-use std::vec::Vec;
+use std::cmp::Ordering;
+use std::vec::{self, Vec};
+
 /*
 
   Btrees are effective data structures for the minimizing the number of random disk accesses when operating on data that
@@ -8,8 +10,6 @@ use std::vec::Vec;
 
   A btree allows for a notion of locality grouping "nearby" interior nodes into a bigger node which
   maps to a "page" on disk. The page is smallest amount of disk data which is allocatable to memory.
-  So each node we find would correspond to a random disk seek but then once we load that page in memory
-  things are faster???
 
   grouping interior nodes together, so interior node comparisons equate to a sequential disk seek.
   A naive binary search tree on the other hand would be a bad fit as there is no idea of locality,
@@ -41,29 +41,116 @@ use std::vec::Vec;
                         ^    ^ leaf nodes (no children)
 */
 
-struct InteriorNode<'a, K: PartialOrd, V> {
+#[derive(Debug)]
+struct InteriorNode<'a, K: Ord, V> {
     key: K,   //   Key is used to maintain the order of the tree,
     value: V, // Value is the actual data being stored.
     // Maximum of N + 1 child nodes
-    children: Vec<Node<'a, K, V>>,
+    children: Vec<NonRootNode<'a, K, V>>,
 }
 
-struct RootNode<'a, K: PartialOrd, V> {
-    interior_nodes: Vec<Node<'a, K, V>>,
+impl<'a, K: Ord, V> InteriorNode<'a, K, V> {
+    pub fn new(key: K, value: V, children: Vec<NonRootNode<'a, K, V>>) -> InteriorNode<'a, K, V> {
+        InteriorNode {
+            key,
+            value,
+            children,
+        }
+    }
+}
+
+impl<'a, K: Ord, V> PartialEq for InteriorNode<'a, K, V> {
+    fn eq(&self, other: &Self) -> bool {
+        self.key == other.key
+    }
+}
+
+impl<'a, K: Ord, V> PartialOrd for InteriorNode<'a, K, V> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl<'a, K: Ord + PartialOrd, V> Ord for InteriorNode<'a, K, V> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        (self.key).cmp(&other.key)
+    }
+}
+
+impl<'a, K: Ord + PartialOrd, V> Eq for InteriorNode<'a, K, V> {}
+
+trait HasInteriorNodes<'a, K: Ord, V> {
+    fn find_interior_node(&self) -> Option<&InteriorNode<'a, K, V>>;
+
+    fn insert_interior_node(&mut self, n: InteriorNode<'a, K, V>) -> ();
+
+    fn delete_interior_node(&mut self, key: K) -> ();
+}
+
+#[derive(Debug, PartialEq)]
+struct RootNode<'a, K: Ord, V> {
+    interior_nodes: Vec<InteriorNode<'a, K, V>>,
 }
 
 // A Node maps to a "page" on disk. Think of btrees as a way of organizing disk pages.
-struct Node<'a, K: PartialOrd, V> {
-    parent: &'a Node<'a, K, V>,
+// Root node and non root nodes are distinguished in the types so that
+// we don't to have an optional parent field which will be populated for all but one of the many
+// nodes in our tree.
+#[derive(Debug)]
+struct NonRootNode<'a, K: Ord, V> {
+    parent: &'a NonRootNode<'a, K, V>,
     // Maximum of N interior nodes
     interior_nodes: Vec<InteriorNode<'a, K, V>>, // sorted by K
 }
 
-impl<'a, K: PartialOrd> Node<'a, K, V> {
+impl<'a, K: Ord, V> NonRootNode<'a, K, V> {
+    pub fn new(parent: &'a NonRootNode<'a, K, V>, key: K, value: V) -> NonRootNode<'a, K, V> {
+        NonRootNode {
+            parent,
+            // Maximum of N interior nodes
+            interior_nodes: vec![InteriorNode {
+                key,
+                value,
+                children: Vec::new(),
+            }],
+        }
+    }
+}
+
+impl<'a, K: Ord, V> HasInteriorNodes<'a, K, V> for RootNode<'a, K, V> {
     // insert in sorted order
-    pub fn insert_interior(&mut self, value: InteriorNode<'a, K, V>) {
-        match self.vec.binary_search(&value) {
-            Ok(pos) | Err(pos) => self.vec.insert(pos, value),
+    fn insert_interior_node(&mut self, n: InteriorNode<'a, K, V>) -> () {
+        match self.interior_nodes.binary_search(&n) {
+            Ok(pos) | Err(pos) => self.interior_nodes.insert(pos, n),
+        }
+    }
+
+    fn find_interior_node(&self) -> Option<&InteriorNode<'a, K, V>> {
+        None
+    }
+
+    fn delete_interior_node(&mut self, _key: K) -> () {}
+}
+
+#[derive(Debug, PartialEq)]
+struct Btree<'a, K: Ord, V> {
+    interior_node_count: u64, // The k in "k-ary btree" or number of interior node per node.
+    root: RootNode<'a, K, V>,
+}
+
+impl<'a, K: Ord, V> Btree<'a, K, V> {
+    pub fn new(interior_node_count: u64, key: K, value: V) -> Self {
+        let mut root: RootNode<'a, K, V> = RootNode {
+            interior_nodes: vec![],
+        };
+
+        let interior_node: InteriorNode<'a, K, V> = InteriorNode::new(key, value, Vec::new());
+
+        root.insert_interior_node(interior_node);
+
+        Btree {
+            interior_node_count,
+            root,
         }
     }
 }
@@ -83,9 +170,21 @@ mod tests {
     */
 
     #[test]
-    fn new_btree_inits_correctly() {
-        let init_btree = todo!();
-        let expected_btree = todo!();
+    fn new_btree_inits_correctly_with_single_key_value() {
+        let interior_node_count: u64 = 2;
+        let key: u8 = 1;
+        let value: u8 = 2;
+        let init_btree: Btree<u8, u8> = Btree::new(interior_node_count, key, value);
+        let expected_btree = Btree {
+            interior_node_count,
+            root: RootNode {
+                interior_nodes: vec![InteriorNode {
+                    key,
+                    value,
+                    children: Vec::new(),
+                }],
+            },
+        };
 
         assert_eq!(init_btree, expected_btree);
     }
