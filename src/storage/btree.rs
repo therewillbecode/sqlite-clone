@@ -1,14 +1,14 @@
 /*
   The family of data structures called "B-trees" are effective data structures for the minimizing the number of random disk accesses when operating on data that
   doesn't fit into memory. The fact b-trees can be used to maximise sequential disk access and minimise random access on
-  disk which is way slower is why they are such a good fit for databases. 
-  
+  disk which is way slower is why they are such a good fit for databases.
+
   A btree allows for a notion of locality grouping "nearby" interior nodes into a bigger node which
   maps to a "page" on disk. The page is smallest amount of disk data which is allocatable to memory.
-  A disk page is interchangeable with a node in our B-tree so consider them interchangeable terms 
-  in this context. Think of btrees as a way of organizing disk pages. Puting many keys in a node (determined by page size) 
+  A disk page is interchangeable with a node in our B-tree so consider them interchangeable terms
+  in this context. Think of btrees as a way of organizing disk pages. Puting many keys in a node (determined by page size)
   mean there is one sequential disk seek to get all of these keys (and their values/refs).
-  A naive binary search tree on the other hand would be a bad fit as there is no idea of locality, 
+  A naive binary search tree on the other hand would be a bad fit as there is no idea of locality,
   every key comparison would equate to a random disk seek.
 
   See the CLRS book which proves that a B-tree with a height of two and 1001 children is able to store more than one billion keys
@@ -32,20 +32,20 @@ use anyhow::{anyhow, Result};
 use std::cmp::Ordering;
 use std::vec::{self, Vec};
 
-
 #[derive(Debug, PartialEq)]
-struct Btree<'a, K: Ord, V> {
+struct Btree<'a, K: Ord, V: Ord> {
     interior_node_count: u64, // The k in "k-ary btree" or number of interior node per node.
     root: RootNode<'a, K, V>,
 }
 
-impl<'a, K: Ord, V> Btree<'a, K, V> {
+impl<'a, K: Ord, V: Ord> Btree<'a, K, V> {
     pub fn new(interior_node_count: u64, key: K, value: V) -> Self {
         let mut root: RootNode<'a, K, V> = RootNode {
             interior_nodes: vec![],
         };
 
-        let interior_node: InnerNodeInterior<'a, K, V> = InnerNodeInterior::new(key, value, Vec::new());
+        let interior_node: InnerNodeInterior<'a, K, V> =
+            InnerNodeInterior::new(key, value, Vec::new());
 
         root.insert_interior_node(interior_node);
 
@@ -56,15 +56,18 @@ impl<'a, K: Ord, V> Btree<'a, K, V> {
     }
 }
 
-
 #[derive(Debug)]
-enum NonRootNode <'a, K: Ord, V> {
+enum NonRootNode<'a, K: Ord, V: Ord> {
     Inner(InnerNode<'a, K, V>),
-   // Leaf(InnerNodeInterior<'a, K: Ord, V>)
-  }
+    Leaf(InnerNodeInterior<'a, K, V>),
+}
 
-impl<'a, K: Ord, V> InnerNodeInterior<'a, K, V> {
-    pub fn new(key: K, value: V, children: Vec<NonRootNode<'a, K, V>>) -> InnerNodeInterior<'a, K, V> {
+impl<'a, K: Ord, V: Ord> InnerNodeInterior<'a, K, V> {
+    pub fn new(
+        key: K,
+        value: V,
+        children: Vec<NonRootNode<'a, K, V>>,
+    ) -> InnerNodeInterior<'a, K, V> {
         InnerNodeInterior {
             key,
             value,
@@ -73,28 +76,28 @@ impl<'a, K: Ord, V> InnerNodeInterior<'a, K, V> {
     }
 }
 
-impl<'a, K: Ord, V> PartialEq for InnerNodeInterior<'a, K, V> {
+impl<'a, K: Ord, V: Ord> PartialEq for InnerNodeInterior<'a, K, V> {
     fn eq(&self, other: &Self) -> bool {
         self.key == other.key
     }
 }
 
-impl<'a, K: Ord, V> PartialOrd for InnerNodeInterior<'a, K, V> {
+impl<'a, K: Ord, V: Ord> PartialOrd for InnerNodeInterior<'a, K, V> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl<'a, K: Ord + PartialOrd, V> Ord for InnerNodeInterior<'a, K, V> {
+impl<'a, K: Ord + PartialOrd, V: Ord> Ord for InnerNodeInterior<'a, K, V> {
     fn cmp(&self, other: &Self) -> Ordering {
         (self.key).cmp(&other.key)
     }
 }
 
-impl<'a, K: Ord + PartialOrd, V> Eq for InnerNodeInterior<'a, K, V> {}
+impl<'a, K: Ord + PartialOrd, V: Ord> Eq for InnerNodeInterior<'a, K, V> {}
 
 // Generic operations on all nodes.
-trait HasInteriorNodes<'a, K: Ord, V> {
+trait HasInteriorNodes<'a, K: Ord, V: Ord> {
     fn find_interior_node(&self) -> Option<&InnerNodeInterior<'a, K, V>>;
 
     fn insert_interior_node(&mut self, n: InnerNodeInterior<'a, K, V>) -> ();
@@ -103,14 +106,13 @@ trait HasInteriorNodes<'a, K: Ord, V> {
 }
 
 #[derive(Debug, PartialEq)]
-struct RootNode<'a, K: Ord, V> {
+struct RootNode<'a, K: Ord, V: Ord> {
     interior_nodes: Vec<InnerNodeInterior<'a, K, V>>,
 }
 
-
 // An Inner node is a node that is not a leaf node and not a root Node.
 #[derive(Debug)]
-struct InnerNode<'a, K: Ord, V> {
+struct InnerNode<'a, K: Ord, V: Ord> {
     // -- Our guideposts to get to leaf Nodes which hold the actual data..
     interior_nodes: Vec<InnerNodeInterior<'a, K, V>>, // sorted by K to enable binary search lookup
 
@@ -122,21 +124,20 @@ struct InnerNode<'a, K: Ord, V> {
 }
 
 #[derive(Debug)]
-struct InnerNodeInterior<'a, K: Ord, V> {
+struct InnerNodeInterior<'a, K: Ord, V: Ord> {
     key: K,   //   Key is used to maintain the order of the tree,
     value: V, // Value is the actual data being stored.
     // Maximum of N + 1 child nodes
     children: Vec<NonRootNode<'a, K, V>>,
 }
 
-
-
-impl<'a, K: Ord, V> InnerNode<'a, K, V> {
+impl<'a, K: Ord, V: Ord> InnerNode<'a, K, V> {
     pub fn new(
-        right_sibling: Option<&'a InnerNode<'a, K, V>>, 
+        right_sibling: Option<&'a InnerNode<'a, K, V>>,
         left_sibling: Option<&'a InnerNode<'a, K, V>>,
         key: K,
-        value: V) -> InnerNode<'a, K, V> {
+        value: V,
+    ) -> InnerNode<'a, K, V> {
         InnerNode {
             left_sibling,
             right_sibling,
@@ -150,13 +151,13 @@ impl<'a, K: Ord, V> InnerNode<'a, K, V> {
     }
 }
 
-
 #[derive(Debug)]
-struct LeafNode<'a, K: Ord, V> {
-    // -- Our guideposts to get to leaf Nodes which hold the actual data..
+struct LeafNode<'a, K: Ord, V: Ord> {
+    // -- Our guideposts --
+    // to get to leaf Nodes which hold the actual data..
     interior_nodes: Vec<LeafNodeInterior<K, V>>, // sorted by K to enable binary search lookup
 
-    // -- Metadata
+    // -- Metadata --
     // We don't have a pointer to parent because allowing backtracking will open
     // the door to deadlocks when concurrent access to the B+Tree occurs.
     left_sibling: Option<&'a InnerNode<'a, K, V>>,
@@ -167,11 +168,10 @@ struct LeafNode<'a, K: Ord, V> {
 struct LeafNodeInterior<K: Ord, V> {
     key: K,
     value: V, // Value is the actual data being stored. The PageId in our case for the tuple
-    // that is associated with the attribute(s) represented by the key.
+              // that is associated with the attribute(s) represented by the key.
 }
 
-
-impl<'a, K: Ord, V> HasInteriorNodes<'a, K, V> for RootNode<'a, K, V> {
+impl<'a, K: Ord, V: Ord> HasInteriorNodes<'a, K, V> for RootNode<'a, K, V> {
     // insert in sorted order
     fn insert_interior_node(&mut self, n: InnerNodeInterior<'a, K, V>) -> () {
         match self.interior_nodes.binary_search(&n) {
