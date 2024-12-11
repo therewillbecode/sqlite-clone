@@ -1,5 +1,5 @@
 
-SQLITE clone in Rust.
+Toy Postgres in Rust for learning purposes.
 
 [x] Parse SELECT sql queries
 
